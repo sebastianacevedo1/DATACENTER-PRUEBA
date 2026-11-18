@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sempre no Ar</title>
+<style>
+body{font-family:system-ui,sans-serif;max-width:640px;margin:2rem auto;padding:0 1rem;color:#1c2430}
+h1{margin-bottom:0}small{color:#667}
+li{padding:.3rem 0;border-bottom:1px solid #eee}
+input,button{padding:.5rem;font-size:1rem}
+</style></head><body>
+<h1>Sempre no Ar</h1>
+<small>Data Center Tier III · Brasil · SaaS de ejemplo</small>
+<p>Lecturas desde: <b id="origen">...</b></p>
+<input id="nombre" placeholder="Nuevo registro"> <button onclick="agregar()">Agregar</button>
+<ul id="lista"></ul>
+<script>
+async function cargar(){
+  const r = await fetch('/api/items'); const d = await r.json();
+  document.getElementById('origen').textContent = d.origen || 'error';
+  document.getElementById('lista').innerHTML = (d.items||[]).map(i=>'<li>#'+i.id+' '+i.nombre+'</li>').join('');
+}
+async function agregar(){
+  const n = document.getElementById('nombre');
+  await fetch('/api/items',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nombre:n.value||'sin nombre'})});
+  n.value=''; cargar();
+}
+cargar();
+</script></body></html>

@@ -1,0 +1,98 @@
+name: sempre-no-ar
+
+services:
+  db_primary:
+    image: postgres:16
+    container_name: db_primary
+    environment:
+      POSTGRES_PASSWORD: admin123
+      POSTGRES_DB: datacenter
+      REPL_PASS: repl_pass
+    command: >
+      postgres -c wal_level=replica -c max_wal_senders=10
+      -c hot_standby=on -c max_connections=300
+    volumes:
+      - ./db/primary-init:/docker-entrypoint-initdb.d:ro
+      - pgdata_primary:/var/lib/postgresql/data
+    mem_limit: 1g
+    cpus: 1.0
+    networks: [servicios]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d datacenter"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  db_replica:
+    image: postgres:16
+    container_name: db_replica
+    entrypoint: ["/bin/bash", "/replica-entrypoint.sh"]
+    environment:
+      REPL_PASS: repl_pass
+    volumes:
+      - ./db/replica-entrypoint.sh:/replica-entrypoint.sh:ro
+      - pgdata_replica:/var/lib/postgresql/data
+    depends_on:
+      db_primary:
+        condition: service_healthy
+    mem_limit: 1g
+    cpus: 1.0
+    networks: [servicios]
+
+  db_backup:
+    image: postgres:16
+    container_name: db_backup
+    environment:
+      PGPASSWORD: admin123
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        while true; do
+          pg_dump -h db_primary -U postgres datacenter > /backups/datacenter_$$(date +%Y%m%d_%H%M%S).sql
+          ls -t /backups/*.sql | tail -n +11 | xargs -r rm
+          sleep 60
+        done
+    volumes:
+      - ./backups:/backups
+    depends_on:
+      db_primary:
+        condition: service_healthy
+    mem_limit: 256m
+    networks: [servicios]
+
+  app:
+    build: ./app
+    container_name: app
+    environment:
+      DB_PRIMARY: db_primary
+      DB_REPLICA: db_replica
+      DB_NAME: datacenter
+      DB_USER: postgres
+      DB_PASS: admin123
+    depends_on:
+      db_primary:
+        condition: service_healthy
+    mem_limit: 512m
+    cpus: 1.5
+    networks: [servicios]
+  
+  web:
+    image: nginx:1.27-alpine
+    container_name: web
+    ports:
+      - "8080:80"
+    volumes:
+      - ./web/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./web/html:/usr/share/nginx/html:ro
+    depends_on: [app]
+    mem_limit: 256m
+    cpus: 1.0
+    networks: [servicios]
+
+volumes:
+  pgdata_primary:
+  pgdata_replica:
+
+networks:
+  servicios:
+    name: sempre_servicios

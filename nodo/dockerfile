@@ -1,0 +1,6 @@
+FROM alpine:3.19
+RUN apk add --no-cache iptables iptables-legacy iproute2 conntrack-tools curl \
+ && ln -sf "$(command -v iptables-legacy)" /sbin/iptables
+COPY entrypoint.sh ver-nat.sh /
+RUN sed -i 's/\r$//' /entrypoint.sh /ver-nat.sh && chmod +x /entrypoint.sh /ver-nat.sh
+ENTRYPOINT ["/entrypoint.sh"]
